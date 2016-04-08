@@ -4,7 +4,7 @@
 # Date: 2016-03-04
 
 CC=gcc
-CFLAGS=-o -std=c99 
+CFLAGS= -std=c99 
 LDFLAGS=-lgmp
 
 kry:
