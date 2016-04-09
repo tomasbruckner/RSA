@@ -44,6 +44,8 @@ void rsa_generate_key(mpz_t result, unsigned long bit){
 	
 }
 
+// http://crypto.stackexchange.com/questions/1970/how-are-primes-generated-for-rsa
+// http://crypto.stackexchange.com/questions/71/how-can-i-generate-large-prime-numbers-for-rsa
 void generate_prime(mpz_t result, unsigned long bit){
 	do{
 		gmp_randstate_t state;
