@@ -33,7 +33,6 @@ int main (int argc, char** argv){
 		mpz_init_set_str(text, argv[4] + 2, 16);
 		
 		mpz_powm(result, text, exponent, mod);
-		
 	} 
 	else if(strcmp(argv[1], "-b") == 0){
         mpz_t mod;
@@ -111,9 +110,11 @@ void generate_prime(mpz_t result, const unsigned long bit, gmp_randstate_t state
     
     printf("Miller\n");
     while(1){
+        if(fermat_test(result, state)){
             if( miller_rabin_test(result, state) ){
                 break;
             }
+        }
         
         mpz_add_ui(result, result, 0x2);
     }
