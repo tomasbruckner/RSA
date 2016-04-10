@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <gmp.h>
 #include "kry.h"
 
@@ -22,7 +23,7 @@ int main (int argc, char** argv){
 	mpz_init(result);
 
 	if(strcmp(argv[1], "-g") == 0){ 
-		rsa_generate_key( result, 10 );
+		rsa_generate_key( result, strtoul(argv[2], NULL, 0) );
     }
 	else if( strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "-d") == 0 ){
 		if(argc != 5) return 1;
@@ -34,12 +35,33 @@ int main (int argc, char** argv){
 		mpz_powm(result, text, exponent, mod);
 		
 	} 
-	else if(strcmp(argv[1], "-b") == 0) ;
-		//rsa_break_key(result, mod);
+	else if(strcmp(argv[1], "-b") == 0){
+        mpz_t mod;
+        mpz_init_set_str(mod, argv[2] + 2, 16);
+        
+		rsa_break_key(result, mod);
+        mpz_clear(mod);
+    }
 	else return 1;
 
 	gmp_printf("%#Zx\n", result);
 	return 0;
+}
+
+void rsa_break_key(mpz_t result, const mpz_t mod){
+    if(mpz_even_p(mod) != 0){
+        mpz_set_ui(result, 0x2);
+        return;
+    }
+
+    for(int i = 0x3; i < 0xf4240; i = i + 2){
+        if( mpz_mod_ui(result, mod, i) == 0){
+            printf("WAT %d %d\n", mpz_mod_ui(result, mod, i), i);
+            mpz_set_ui(result, i);
+            return;
+        }
+    }
+    pollard_rho(result, mod);
 }
 
 void rsa_generate_key(mpz_t result, const unsigned long bit){
@@ -49,14 +71,24 @@ void rsa_generate_key(mpz_t result, const unsigned long bit){
     mpz_init(phi_n);
     mpz_init(e);
     mpz_init(tmp);
-    generate_prime(p, bit/2);
-    generate_prime(q, bit/2);
+    gmp_randstate_t state;
+    gmp_randinit_default(state);
+    gmp_randseed_ui(state, time(NULL));
+
+    generate_prime(p, bit/2, state);
+    generate_prime(q, bit/2, state);
+
+	gmp_printf("P %#Zx\n", p);
+	gmp_printf("Q %#Zx\n", q);
+    mpz_mul(tmp, p, q);
+	gmp_printf("N %#Zx\n", tmp);
 
     mpz_sub_ui(tmp, p, 0x1);
     mpz_sub_ui(phi_n, q, 0x1);
     mpz_mul(phi_n, phi_n, tmp);
 
     mpz_set_ui(e, 0x3);
+	gmp_printf("E %#Zx\n", e);
     
     inverse_extended_euclid(result, phi_n, e);
 
@@ -65,25 +97,23 @@ void rsa_generate_key(mpz_t result, const unsigned long bit){
     mpz_clear(phi_n);
     mpz_clear(e);
     mpz_clear(tmp);
+    gmp_randclear(state);
 }
 
 // http://crypto.stackexchange.com/questions/1970/how-are-primes-generated-for-rsa
 // http://crypto.stackexchange.com/questions/71/how-can-i-generate-large-prime-numbers-for-rsa
-void generate_prime(mpz_t result, const unsigned long bit){
+void generate_prime(mpz_t result, const unsigned long bit, gmp_randstate_t state){
 	do{
-		gmp_randstate_t state;
-		gmp_randinit_default(state);
 		mpz_urandomb(result, state, bit);
     }while( mpz_cmp_ui(result, 0x3) <= 0);
 
     if(mpz_even_p(result) != 0) mpz_add_ui(result, result, 0x1);
-
+    
+    printf("Miller\n");
     while(1){
-        if( fermat_test(result) ){
-            if( miller_rabin_test(result) ){
+            if( miller_rabin_test(result, state) ){
                 break;
             }
-        }
         
         mpz_add_ui(result, result, 0x2);
     }
@@ -166,15 +196,14 @@ void update(mpz_t a, mpz_t b, const mpz_t y){
 }
 
 // http://mathcircle.berkeley.edu/BMC5/docpspdf/is-prime.pdf
-int fermat_test(const mpz_t prime){
+int fermat_test(const mpz_t prime, gmp_randstate_t state){
     int isprime = FALSE;
     mpz_t tmp, a, n_1;
     mpz_init(tmp);
     mpz_init(a);
     mpz_init(n_1);
     mpz_sub_ui(n_1, prime, 0x1);
-    gmp_randstate_t state;
-    gmp_randinit_default(state);
+
     mpz_urandomm(a, state, n_1);
     gcd_euclid(tmp, a, prime);
     if(mpz_cmp_ui(tmp, 1) > 0) isprime = FALSE;
@@ -190,7 +219,7 @@ int fermat_test(const mpz_t prime){
 }
 
 // http://mathcircle.berkeley.edu/BMC5/docpspdf/is-prime.pdf
-int miller_rabin_test(mpz_t prime){
+int miller_rabin_test(mpz_t prime, gmp_randstate_t state){
     int isprime = FALSE, t = 0;
     mpz_t m, a, b, n_1, tmp;
     mpz_init(a);
@@ -199,8 +228,6 @@ int miller_rabin_test(mpz_t prime){
     mpz_init(tmp);
     mpz_init(n_1);
     mpz_sub_ui(n_1, prime, 0x1);
-    gmp_randstate_t state;
-    gmp_randinit_default(state);
 
     do{
         mpz_urandomm(a, state, n_1);
@@ -236,6 +263,67 @@ int miller_rabin_test(mpz_t prime){
     mpz_clear(tmp);
     mpz_clear(n_1);
     return isprime;
+}
+
+void pollard_rho(mpz_t result, const mpz_t n){
+    if(mpz_even_p(n) != 0){
+        mpz_set_ui(result, 0x2);
+        return;
+    }
+
+    mpz_t x, y, c, g, n_1;
+    mpz_init(x);
+    mpz_init(y);
+    mpz_init(c);
+    mpz_init(g);
+    mpz_init(n_1);
+
+    gmp_randstate_t state;
+    gmp_randinit_default(state);
+    gmp_randseed_ui(state, time(NULL));
+
+    mpz_set(n_1, n);
+    mpz_sub_ui(n_1, n_1, 0x1);
+
+    mpz_urandomm(x, state, n_1);
+    mpz_add_ui(x, x, 0x1);
+
+    mpz_set(y, x);
+
+    mpz_urandomm(c, state, n_1);
+    mpz_add_ui(c, c, 0x1);
+
+    mpz_set_ui(g, 0x1);
+
+    while(mpz_cmp_ui(g, 0x1) == 0){
+        mpz_mul(x, x, x);
+        mpz_mod(x, x, n);
+        mpz_add(x, x, c);
+        mpz_mod(x, x, n);
+
+        mpz_mul(y, y, y);
+        mpz_mod(y, y, n);
+        mpz_add(y, y, c);
+        mpz_mod(y, y, n);
+
+        mpz_mul(y, y, y);
+        mpz_mod(y, y, n);
+        mpz_add(y, y, c);
+        mpz_mod(y, y, n);
+
+        mpz_sub(g, x, y);
+        gcd_euclid(g, g, n);
+    }    
+
+    mpz_set(result, g);
+
+    mpz_clear(x);
+    mpz_clear(y);
+    mpz_clear(c);
+    mpz_clear(g);
+    mpz_clear(n_1);
+
+    gmp_randclear(state);
 }
 
 // vim: expandtab:shiftwidth=4:tabstop=4:softtabstop=0:textwidth=120
