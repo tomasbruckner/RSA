@@ -55,12 +55,12 @@ void rsa_break_key(mpz_t result, const mpz_t mod){
 
     for(int i = 0x3; i < 0xf4240; i = i + 2){
         if( mpz_mod_ui(result, mod, i) == 0){
-            printf("WAT %d %d\n", mpz_mod_ui(result, mod, i), i);
             mpz_set_ui(result, i);
             return;
         }
     }
-    pollard_rho(result, mod);
+    //pollard_rho(result, mod);
+    pollard_rho_brent(result, mod);
 }
 
 void rsa_generate_key(mpz_t result, const unsigned long bit){
@@ -108,13 +108,21 @@ void generate_prime(mpz_t result, const unsigned long bit, gmp_randstate_t state
 
     if(mpz_even_p(result) != 0) mpz_add_ui(result, result, 0x1);
     
-    printf("Miller\n");
+    unsigned long f = 0, m = 0;
+    int isprime = FALSE;
     while(1){
+        isprime = FALSE;
         if(fermat_test(result, state)){
-            if( miller_rabin_test(result, state) ){
-                break;
+            for(int i = 0; i < 100; i++){
+                if( !miller_rabin_test(result, state) ){
+                    isprime = FALSE;
+                    break;
+                }
+                isprime = TRUE;
             }
         }
+        
+        if(isprime) break;
         
         mpz_add_ui(result, result, 0x2);
     }
@@ -145,7 +153,7 @@ void gcd_euclid(mpz_t result, const mpz_t op1, const mpz_t op2){
     mpz_clear(tmp2);
 }
 
-void inverse_extended_euclid(mpz_t result, mpz_t n, mpz_t x){
+void inverse_extended_euclid(mpz_t result, const mpz_t n, const mpz_t x){
     mpz_t g, h, w, z, v, r, y;
     mpz_init(g);
     mpz_init(h);
@@ -229,25 +237,25 @@ int miller_rabin_test(mpz_t prime, gmp_randstate_t state){
     mpz_init(tmp);
     mpz_init(n_1);
     mpz_sub_ui(n_1, prime, 0x1);
-
     do{
         mpz_urandomm(a, state, n_1);
-    }while(mpz_cmp_ui(a, 2) >= 0);
+    }while(mpz_cmp_ui(a, 0x2) <= 0);
 
     mpz_set(m, n_1);   
+    t = 0;
     while(mpz_even_p(m) != 0){
         mpz_fdiv_q_2exp(m, m, 1);
         t++;
     }
     mpz_powm(b, a, m, prime);
-    if(mpz_cmp_ui(b, 1) == 0) isprime = TRUE;
+    if(mpz_cmp_ui(b, 0x1) == 0) isprime = TRUE;
     mpz_sub(tmp, b, prime);
     if(mpz_cmp_si(tmp, -1) == 0) isprime = TRUE;
 
     if(!isprime){
         for(int i = t - 1; i != 0; i--){
-            mpz_powm_ui(b, b, 2, prime);
-            if(mpz_cmp_ui(b, 1) == 0){
+            mpz_powm_ui(b, b, 0x2, prime);
+            if(mpz_cmp_ui(b, 0x1) == 0){
                 break;
             }
             mpz_sub(tmp, b, prime);
@@ -325,6 +333,125 @@ void pollard_rho(mpz_t result, const mpz_t n){
     mpz_clear(n_1);
 
     gmp_randclear(state);
+}
+
+void pollard_rho_brent(mpz_t result, const mpz_t n){
+    if(mpz_even_p(n) != 0){
+        mpz_set_ui(result, 0x2);
+        return;
+    }
+
+    mpz_t y, c, m, g, r, q, k, n_1, x, ys, i, j, len, tmp;
+    mpz_init(y);
+    mpz_init(c);
+    mpz_init(m);
+    mpz_init(g);
+    mpz_init(r);
+    mpz_init(q);
+    mpz_init(k);
+    mpz_init(n_1);
+    mpz_init(x);
+    mpz_init(i);
+    mpz_init(j);
+    mpz_init(ys);
+    mpz_init(len);
+    mpz_init(tmp);
+
+    gmp_randstate_t state;
+    gmp_randinit_default(state);
+    gmp_randseed_ui(state, time(NULL));
+
+    mpz_set(n_1, n);
+    mpz_sub_ui(n_1, n_1, 0x1);
+
+    mpz_urandomm(y, state, n_1);
+    mpz_add_ui(y, y, 0x1);
+
+    mpz_urandomm(c, state, n_1);
+    mpz_add_ui(c, c, 0x1);
+
+    mpz_urandomm(m, state, n_1);
+    mpz_add_ui(m, m, 0x1);
+
+    mpz_set_ui(g, 0x1);
+    mpz_set_ui(r, 0x1);
+    mpz_set_ui(q, 0x1);
+
+    while(mpz_cmp_ui(g, 0x1) == 0){
+        mpz_set(x, y);
+        for(mpz_set_ui(i, 0x0); mpz_cmp(i, r) != 0; mpz_add_ui(i, i, 0x1)){
+            mpz_mul(y, y, y);
+            mpz_mod(y, y, n);
+            mpz_add(y, y, c);
+            mpz_mod(y, y, n);
+        }
+
+        mpz_set_ui(k, 0x0);
+
+        while(mpz_cmp(k, r) < 0 && mpz_cmp_ui(g, 0x1) == 0){
+            mpz_set(ys, y);
+                
+            mpz_sub(tmp, r, k);
+            if(mpz_cmp(m, tmp) < 0){
+                mpz_set(len, m);
+            }
+            else{
+                mpz_set(len, tmp);
+            }
+
+            for(mpz_set_ui(j, 0x0); mpz_cmp(j, len) != 0; mpz_add_ui(j, j, 0x1)){
+                mpz_mul(y, y, y);
+                mpz_mod(y, y, n);
+                mpz_add(y, y, c);
+                mpz_mod(y, y, n);
+                
+                mpz_sub(tmp, x, y);
+                mpz_abs(tmp, tmp);
+                mpz_mul(q, q, tmp);
+                mpz_mod(q, q, n);
+            }
+
+            gcd_euclid(g, q, n);
+    
+            mpz_add(k, k, m);
+        }
+        mpz_mul_ui(r, r, 0x2);
+    }    
+
+    if(mpz_cmp(g, n) == 0){
+        while(1){
+            mpz_mul(ys, ys, ys);
+            mpz_mod(ys, ys, n);
+            mpz_add(ys, ys, c);
+            mpz_mod(ys, ys, n);
+
+            mpz_sub(g, x, ys);
+            mpz_abs(g, g);
+            gcd_euclid(g, g, n);
+
+            if(mpz_cmp_ui(g, 0x1) > 0) break;
+        }
+    }
+
+    mpz_set(result, g);
+
+    mpz_clear(y);
+    mpz_clear(c);
+    mpz_clear(m);
+    mpz_clear(g);
+    mpz_clear(r);
+    mpz_clear(q);
+    mpz_clear(k);
+    mpz_clear(n_1);
+    mpz_clear(x);
+    mpz_clear(ys);
+    mpz_clear(i);
+    mpz_clear(j);
+    mpz_clear(len);
+    mpz_clear(tmp);
+
+    gmp_randclear(state);
+
 }
 
 // vim: expandtab:shiftwidth=4:tabstop=4:softtabstop=0:textwidth=120
