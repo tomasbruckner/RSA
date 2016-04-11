@@ -33,6 +33,7 @@ int main (int argc, char** argv){
 		mpz_init_set_str(text, argv[4] + 2, 16);
 		
 		mpz_powm(result, text, exponent, mod);
+	    gmp_printf("%#Zx\n", result);
 	} 
 	else if(strcmp(argv[1], "-b") == 0){
         mpz_t mod;
@@ -40,10 +41,10 @@ int main (int argc, char** argv){
         
 		rsa_break_key(result, mod);
         mpz_clear(mod);
+	    gmp_printf("%#Zx\n", result);
     }
 	else return 1;
 
-	gmp_printf("%#Zx\n", result);
 	return 0;
 }
 
@@ -73,23 +74,30 @@ void rsa_generate_key(mpz_t result, const unsigned long bit){
     gmp_randstate_t state;
     gmp_randinit_default(state);
     gmp_randseed_ui(state, time(NULL));
-
-    generate_prime(p, bit/2, state);
+    
+    int offset = bit%2 == 0? 0 : 1;
+    
+    generate_prime(p, bit/2 + offset, state);
     generate_prime(q, bit/2, state);
 
-	gmp_printf("P %#Zx\n", p);
-	gmp_printf("Q %#Zx\n", q);
+	gmp_printf("%#Zx ", p);
+	gmp_printf("%#Zx ", q);
     mpz_mul(tmp, p, q);
-	gmp_printf("N %#Zx\n", tmp);
+	gmp_printf("%#Zx ", tmp);
 
     mpz_sub_ui(tmp, p, 0x1);
     mpz_sub_ui(phi_n, q, 0x1);
     mpz_mul(phi_n, phi_n, tmp);
 
-    mpz_set_ui(e, 0x3);
-	gmp_printf("E %#Zx\n", e);
+    const int exponents[] = { 0x3, 0x5, 0x11, 0x101, 0x10001 };
+    for(int i = 0; i < 5; i++){
+        mpz_set_ui(e, exponents[i]);
+        inverse_extended_euclid(result, phi_n, e);
+        if(mpz_cmp_ui(result, 0x1) != 0) break;
+    }
     
-    inverse_extended_euclid(result, phi_n, e);
+	gmp_printf("%#Zx ", e);
+	gmp_printf("%#Zx\n", result);
 
     mpz_clear(p);
     mpz_clear(q);
@@ -213,7 +221,7 @@ int fermat_test(const mpz_t prime, gmp_randstate_t state){
     mpz_init(n_1);
     mpz_sub_ui(n_1, prime, 0x1);
 
-    mpz_urandomm(a, state, n_1);
+    mpz_urandomm(a, state, prime);
     gcd_euclid(tmp, a, prime);
     if(mpz_cmp_ui(tmp, 1) > 0) isprime = FALSE;
     
@@ -238,8 +246,8 @@ int miller_rabin_test(mpz_t prime, gmp_randstate_t state){
     mpz_init(n_1);
     mpz_sub_ui(n_1, prime, 0x1);
     do{
-        mpz_urandomm(a, state, n_1);
-    }while(mpz_cmp_ui(a, 0x2) <= 0);
+        mpz_urandomm(a, state, prime);
+    }while(mpz_cmp_ui(a, 0x2) < 0);
 
     mpz_set(m, n_1);   
     t = 0;
@@ -274,6 +282,7 @@ int miller_rabin_test(mpz_t prime, gmp_randstate_t state){
     return isprime;
 }
 
+// https://comeoncodeon.wordpress.com/2010/09/18/pollard-rho-brent-integer-factorization/
 void pollard_rho(mpz_t result, const mpz_t n){
     if(mpz_even_p(n) != 0){
         mpz_set_ui(result, 0x2);
@@ -294,12 +303,12 @@ void pollard_rho(mpz_t result, const mpz_t n){
     mpz_set(n_1, n);
     mpz_sub_ui(n_1, n_1, 0x1);
 
-    mpz_urandomm(x, state, n_1);
+    mpz_urandomm(x, state, n);
     mpz_add_ui(x, x, 0x1);
 
     mpz_set(y, x);
 
-    mpz_urandomm(c, state, n_1);
+    mpz_urandomm(c, state, n);
     mpz_add_ui(c, c, 0x1);
 
     mpz_set_ui(g, 0x1);
@@ -349,7 +358,6 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
     mpz_init(r);
     mpz_init(q);
     mpz_init(k);
-    mpz_init(n_1);
     mpz_init(x);
     mpz_init(i);
     mpz_init(j);
@@ -361,16 +369,13 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
     gmp_randinit_default(state);
     gmp_randseed_ui(state, time(NULL));
 
-    mpz_set(n_1, n);
-    mpz_sub_ui(n_1, n_1, 0x1);
-
-    mpz_urandomm(y, state, n_1);
+    mpz_urandomm(y, state, n);
     mpz_add_ui(y, y, 0x1);
 
-    mpz_urandomm(c, state, n_1);
+    mpz_urandomm(c, state, n);
     mpz_add_ui(c, c, 0x1);
 
-    mpz_urandomm(m, state, n_1);
+    mpz_urandomm(m, state, n);
     mpz_add_ui(m, m, 0x1);
 
     mpz_set_ui(g, 0x1);
@@ -442,7 +447,6 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
     mpz_clear(r);
     mpz_clear(q);
     mpz_clear(k);
-    mpz_clear(n_1);
     mpz_clear(x);
     mpz_clear(ys);
     mpz_clear(i);
