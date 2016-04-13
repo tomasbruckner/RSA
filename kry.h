@@ -14,14 +14,7 @@
 void rsa_generate_key(const unsigned long bitlength);
 
 /*
- *	Factorizes public modulus to mod = p*q. Set result to prime P.
- *	@param result output, prime P
- *	@param mod public modulus
- */
-void rsa_break_key(mpz_t result, const mpz_t mod);
-
-/*
- *	Generates random prime.
+ *	Generates random probable prime with probability 2^(-100).
  *	@param result output, random prime
  *	@param bitlength length of prime in bits
  *	@param state initialiazed state with seed for random number generation
@@ -60,6 +53,13 @@ int fermat_test(const mpz_t n, gmp_randstate_t state);
  *	@return TRUE if n is a prime, otherwise FALSE
  */
 int miller_rabin_test(mpz_t n, gmp_randstate_t state);
+
+/*
+ *	Factorizes public modulus to mod = p*q. Set result to prime P.
+ *	@param result output, prime P
+ *	@param mod public modulus
+ */
+void rsa_break_key(mpz_t result, const mpz_t mod);
 
 /*
  *	Factorizes n to n = p*q using Pollard rho Brent's variant integer factorization algorithm.

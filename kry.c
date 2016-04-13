@@ -18,7 +18,7 @@
 #define TRUE 1
 
 int main (int argc, char** argv){
-	if(argc == 1) return 1;
+	if(argc < 3) return 1;
 	mpz_t result;	
 	mpz_init(result);
 
@@ -36,6 +36,10 @@ int main (int argc, char** argv){
 		
 		mpz_powm(result, text, exponent, mod);
 	    gmp_printf("%#Zx\n", result);
+
+        mpz_clear(exponent);
+        mpz_clear(text);
+        mpz_clear(mod);
 	}
     // break
 	else if(strcmp(argv[1], "-b") == 0){
@@ -43,10 +47,13 @@ int main (int argc, char** argv){
         mpz_init_set_str(mod, argv[2] + 2, 16);
         
 		rsa_break_key(result, mod);
-        mpz_clear(mod);
 	    gmp_printf("%#Zx\n", result);
+
+        mpz_clear(mod);
     }
 	else return 1;
+
+    mpz_clear(result);
 
 	return 0;
 }
@@ -123,10 +130,8 @@ void rsa_generate_key(const unsigned long bitlength){
     gmp_randclear(state);
 }
 
-// http://crypto.stackexchange.com/questions/1970/how-are-primes-generated-for-rsa
-// http://crypto.stackexchange.com/questions/71/how-can-i-generate-large-prime-numbers-for-rsa
 void generate_prime(mpz_t result, const unsigned long bitlength, gmp_randstate_t state){
-    // generate random number greater 2
+    // generate random number greater than 2
 	do{
 		mpz_urandomb(result, state, bitlength);
     }while( mpz_cmp_ui(result, 0x3) <= 0);
@@ -155,6 +160,7 @@ void generate_prime(mpz_t result, const unsigned long bitlength, gmp_randstate_t
     }
 }
 
+// Algorithm inspired by:
 // http://blog.janmr.com/2009/10/computing-the-greatest-common-divisor.html
 void gcd_euclid(mpz_t result, const mpz_t op1, const mpz_t op2){
     mpz_t   tmp1,   // op1 clone
@@ -181,6 +187,8 @@ void gcd_euclid(mpz_t result, const mpz_t op1, const mpz_t op2){
     mpz_clear(tmp2);
 }
 
+// Algorithm inspired by:
+// https://www.fit.vutbr.cz/study/courses/KRY/private/800-2.txt
 void inverse_extended_euclid(mpz_t result, const mpz_t n, const mpz_t x){
     mpz_t g, h, w, z, v, r, y;
     mpz_init(g);
@@ -194,12 +202,15 @@ void inverse_extended_euclid(mpz_t result, const mpz_t n, const mpz_t x){
     mpz_set(g, n);
     mpz_set(h, x);
     mpz_set_ui(w, 0x1);
+    mpz_set_ui(r, 0x1);
     mpz_set_ui(z, 0x0);
     mpz_set_ui(v, 0x0);
-    mpz_set_ui(r, 0x1);
 
+    // while( h > 0)
     while(mpz_cmp_ui(h, 0x0) > 0){
+        //y = g / h
         mpz_fdiv_q(y, g, h);
+
         update(g, h, y);
         update(w, z, y);
         update(v, r, y);
@@ -216,6 +227,8 @@ void inverse_extended_euclid(mpz_t result, const mpz_t n, const mpz_t x){
     mpz_clear(y);
 }
 
+// Algorithm inspired by:
+// https://www.fit.vutbr.cz/study/courses/KRY/private/800-2.txt
 void update(mpz_t a, mpz_t b, const mpz_t y){
     mpz_t tmp, tmp2;
     mpz_init(tmp);
@@ -233,6 +246,7 @@ void update(mpz_t a, mpz_t b, const mpz_t y){
     mpz_clear(tmp2);
 }
 
+// Algorithm inspired by:
 // http://mathcircle.berkeley.edu/BMC5/docpspdf/is-prime.pdf
 int fermat_test(const mpz_t n, gmp_randstate_t state){
     int isprime = FALSE;
@@ -265,6 +279,7 @@ int fermat_test(const mpz_t n, gmp_randstate_t state){
     return isprime;
 }
 
+// Algorithm inspired by:
 // http://mathcircle.berkeley.edu/BMC5/docpspdf/is-prime.pdf
 int miller_rabin_test(mpz_t n, gmp_randstate_t state){
     int isprime = FALSE;
@@ -329,6 +344,8 @@ int miller_rabin_test(mpz_t n, gmp_randstate_t state){
     return isprime;
 }
 
+// Algorithm inspired by:
+// https://comeoncodeon.wordpress.com/2010/09/18/pollard-rho-brent-integer-factorization/
 void pollard_rho_brent(mpz_t result, const mpz_t n){
     // check if even
     if(mpz_even_p(n) != 0){
