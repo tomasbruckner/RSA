@@ -24,7 +24,7 @@ int main (int argc, char** argv){
 
     // generate
 	if(strcmp(argv[1], "-g") == 0){ 
-		rsa_generate_key( result, strtoul(argv[2], NULL, 0) );
+		rsa_generate_key( strtoul(argv[2], NULL, 0) );
     }
     // encrypt or decrypt
 	else if( strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "-d") == 0 ){
@@ -65,35 +65,36 @@ void rsa_break_key(mpz_t result, const mpz_t mod){
             return;
         }
     }
-    //pollard_rho(result, mod);
+
     pollard_rho_brent(result, mod);
 }
 
-void rsa_generate_key(mpz_t result, const unsigned long bit){
+void rsa_generate_key(const unsigned long bitlength){
     mpz_t p, q, phi_n, e, d, tmp;
     mpz_init(p);
     mpz_init(q);
     mpz_init(phi_n);
     mpz_init(e);
     mpz_init(tmp);
+
     gmp_randstate_t state;
     gmp_randinit_default(state);
     gmp_randseed_ui(state, time(NULL));
 
     // even/odd check
-    int offset = bit%2 == 0? 0 : 1;
+    int offset = bitlength%2 == 0? 0 : 1;
     
-    generate_prime(p, bit/2 + offset, state);
-    generate_prime(q, bit/2, state);
+    generate_prime(p, bitlength/2 + offset, state);
+    generate_prime(q, bitlength/2, state);
 
 	gmp_printf("%#Zx ", p);
 	gmp_printf("%#Zx ", q);
     
-    // modulus
+    // public modulus N
     mpz_mul(tmp, p, q);
 	gmp_printf("%#Zx ", tmp);
 
-    // phi_n
+    // phi_n = (p-1)*(q-1)
     mpz_sub_ui(tmp, p, 0x1);
     mpz_sub_ui(phi_n, q, 0x1);
     mpz_mul(phi_n, phi_n, tmp);
@@ -102,14 +103,17 @@ void rsa_generate_key(mpz_t result, const unsigned long bit){
     const int exponents[] = { 0x3, 0x5, 0x11, 0x101, 0x10001 };
     for(int i = 0; i < 5; i++){
         mpz_set_ui(e, exponents[i]);
-        inverse_extended_euclid(result, phi_n, e);
-        if(mpz_cmp_ui(result, 0x1) != 0) break;
+
+        // private key d = e^(-1) mod phi_n
+        inverse_extended_euclid(tmp, phi_n, e);
+        if(mpz_cmp_ui(tmp, 0x1) != 0) break;
     }
     
+    // public exponent E
 	gmp_printf("%#Zx ", e);
 
-    // private key
-	gmp_printf("%#Zx\n", result);
+    // private key D
+	gmp_printf("%#Zx\n", tmp);
 
     mpz_clear(p);
     mpz_clear(q);
@@ -121,10 +125,10 @@ void rsa_generate_key(mpz_t result, const unsigned long bit){
 
 // http://crypto.stackexchange.com/questions/1970/how-are-primes-generated-for-rsa
 // http://crypto.stackexchange.com/questions/71/how-can-i-generate-large-prime-numbers-for-rsa
-void generate_prime(mpz_t result, const unsigned long bit, gmp_randstate_t state){
+void generate_prime(mpz_t result, const unsigned long bitlength, gmp_randstate_t state){
     // generate random number greater 2
 	do{
-		mpz_urandomb(result, state, bit);
+		mpz_urandomb(result, state, bitlength);
     }while( mpz_cmp_ui(result, 0x3) <= 0);
 
     // if random number is even, make it odd
@@ -325,70 +329,8 @@ int miller_rabin_test(mpz_t n, gmp_randstate_t state){
     return isprime;
 }
 
-// https://comeoncodeon.wordpress.com/2010/09/18/pollard-rho-brent-integer-factorization/
-void pollard_rho(mpz_t result, const mpz_t n){
-    if(mpz_even_p(n) != 0){
-        mpz_set_ui(result, 0x2);
-        return;
-    }
-
-    mpz_t x, y, c, g, n_1;
-    mpz_init(x);
-    mpz_init(y);
-    mpz_init(c);
-    mpz_init(g);
-    mpz_init(n_1);
-
-    gmp_randstate_t state;
-    gmp_randinit_default(state);
-    gmp_randseed_ui(state, time(NULL));
-
-    mpz_set(n_1, n);
-    mpz_sub_ui(n_1, n_1, 0x1);
-
-    // generate random x in {1,...,n-1}
-    mpz_urandomm(x, state, n);
-    mpz_add_ui(x, x, 0x1);
-
-    mpz_set(y, x);
-
-    mpz_urandomm(c, state, n);
-    mpz_add_ui(c, c, 0x1);
-
-    mpz_set_ui(g, 0x1);
-
-    while(mpz_cmp_ui(g, 0x1) == 0){
-        mpz_mul(x, x, x);
-        mpz_mod(x, x, n);
-        mpz_add(x, x, c);
-        mpz_mod(x, x, n);
-
-        mpz_mul(y, y, y);
-        mpz_mod(y, y, n);
-        mpz_add(y, y, c);
-        mpz_mod(y, y, n);
-
-        mpz_mul(y, y, y);
-        mpz_mod(y, y, n);
-        mpz_add(y, y, c);
-        mpz_mod(y, y, n);
-
-        mpz_sub(g, x, y);
-        gcd_euclid(g, g, n);
-    }    
-
-    mpz_set(result, g);
-
-    mpz_clear(x);
-    mpz_clear(y);
-    mpz_clear(c);
-    mpz_clear(g);
-    mpz_clear(n_1);
-
-    gmp_randclear(state);
-}
-
 void pollard_rho_brent(mpz_t result, const mpz_t n){
+    // check if even
     if(mpz_even_p(n) != 0){
         mpz_set_ui(result, 0x2);
         return;
@@ -409,17 +351,23 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
     mpz_init(len);
     mpz_init(tmp);
 
+    mpz_init(n_1);
+    mpz_sub_ui(n_1, n, 0x1);
+
     gmp_randstate_t state;
     gmp_randinit_default(state);
     gmp_randseed_ui(state, time(NULL));
 
-    mpz_urandomm(y, state, n);
+    // generate random y in {1,...,n-1}
+    mpz_urandomm(y, state, n_1);
     mpz_add_ui(y, y, 0x1);
 
-    mpz_urandomm(c, state, n);
+    // generate random c in {1,...,n-1}
+    mpz_urandomm(c, state, n_1);
     mpz_add_ui(c, c, 0x1);
 
-    mpz_urandomm(m, state, n);
+    // generate random m in {1,...,n-1}
+    mpz_urandomm(m, state, n_1);
     mpz_add_ui(m, m, 0x1);
 
     mpz_set_ui(g, 0x1);
@@ -428,7 +376,10 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
 
     while(mpz_cmp_ui(g, 0x1) == 0){
         mpz_set(x, y);
-        for(mpz_set_ui(i, 0x0); mpz_cmp(i, r) != 0; mpz_add_ui(i, i, 0x1)){
+        
+        // for (i = 0; i < r; i++)
+        for(mpz_set_ui(i, 0x0); mpz_cmp(i, r) < 0; mpz_add_ui(i, i, 0x1)){
+            // y = (y*y mod n + c) mod n
             mpz_mul(y, y, y);
             mpz_mod(y, y, n);
             mpz_add(y, y, c);
@@ -437,9 +388,11 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
 
         mpz_set_ui(k, 0x0);
 
+        // while(k<r && g == 1)
         while(mpz_cmp(k, r) < 0 && mpz_cmp_ui(g, 0x1) == 0){
             mpz_set(ys, y);
-                
+
+            // len = min(m, r-k)
             mpz_sub(tmp, r, k);
             if(mpz_cmp(m, tmp) < 0){
                 mpz_set(len, m);
@@ -448,12 +401,15 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
                 mpz_set(len, tmp);
             }
 
-            for(mpz_set_ui(j, 0x0); mpz_cmp(j, len) != 0; mpz_add_ui(j, j, 0x1)){
+            // for(j=0; j < len; j++)
+            for(mpz_set_ui(j, 0x0); mpz_cmp(j, len) < 0; mpz_add_ui(j, j, 0x1)){
+                // y = (y*y mod n + c) mod n
                 mpz_mul(y, y, y);
                 mpz_mod(y, y, n);
                 mpz_add(y, y, c);
                 mpz_mod(y, y, n);
                 
+                // q = abs(x-y)*q mod n
                 mpz_sub(tmp, x, y);
                 mpz_abs(tmp, tmp);
                 mpz_mul(q, q, tmp);
@@ -469,13 +425,16 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
 
     if(mpz_cmp(g, n) == 0){
         while(1){
+            // ys = (ys*ys mod n + c) mod n
             mpz_mul(ys, ys, ys);
             mpz_mod(ys, ys, n);
             mpz_add(ys, ys, c);
             mpz_mod(ys, ys, n);
 
+            // g = abs(x-ys)
             mpz_sub(g, x, ys);
             mpz_abs(g, g);
+
             gcd_euclid(g, g, n);
 
             if(mpz_cmp_ui(g, 0x1) > 0) break;
@@ -499,7 +458,6 @@ void pollard_rho_brent(mpz_t result, const mpz_t n){
     mpz_clear(tmp);
 
     gmp_randclear(state);
-
 }
 
 // vim: expandtab:shiftwidth=4:tabstop=4:softtabstop=0:textwidth=120
