@@ -108,7 +108,6 @@ void rsa_generate_key(const unsigned long bitlength){
 	gmp_printf("%#Zx ", q);
     
     // public modulus N
-    mpz_mul(tmp, p, q);
 	gmp_printf("%#Zx ", tmp);
 
     // phi_n = (p-1)*(q-1)
@@ -146,13 +145,13 @@ void generate_prime(mpz_t result, const unsigned long bitlength, gmp_randstate_t
     mpz_setbit(result, bitlength - 1);
 
     // if random number is even, make it odd
-    if(mpz_even_p(result) != 0) mpz_add_ui(result, result, 0x1);
+    mpz_setbit(result, 0);
     
     int isprime = FALSE;
     while(1){
         isprime = FALSE;
         if(fermat_test(result, state)){
-            // one iteration has probability 1/2 of error
+            // one iteration has probability 1/4 of error
             for(int i = 0; i < 100; i++){
                 if( !miller_rabin_test(result, state) ){
                     isprime = FALSE;
