@@ -92,10 +92,15 @@ void rsa_generate_key(const unsigned long bitlength){
     int offset = bitlength%2 == 0? 0 : 1;
    
     // m = p*q
-    // generates p, q so m is of length bitlength 
+    // generates random primes p, q so m is of length bitlength 
     do{
         generate_prime(p, bitlength/2 + offset, state);
-        generate_prime(q, bitlength/2, state);
+
+        // generates a random prime q different from p
+        do{
+            generate_prime(q, bitlength/2, state);
+        }while( mpz_cmp(p, q) == 0 );
+
         mpz_mul(tmp, p, q);
     }while( !mpz_tstbit(tmp, bitlength - 1) );
 
