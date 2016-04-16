@@ -90,9 +90,14 @@ void rsa_generate_key(const unsigned long bitlength){
 
     // even/odd check
     int offset = bitlength%2 == 0? 0 : 1;
-    
-    generate_prime(p, bitlength/2 + offset, state);
-    generate_prime(q, bitlength/2, state);
+   
+    // m = p*q
+    // generates p, q so m is of length bitlength 
+    do{
+        generate_prime(p, bitlength/2 + offset, state);
+        generate_prime(q, bitlength/2, state);
+        mpz_mul(tmp, p, q);
+    }while( !mpz_tstbit(tmp, bitlength - 1) );
 
 	gmp_printf("%#Zx ", p);
 	gmp_printf("%#Zx ", q);
@@ -131,10 +136,9 @@ void rsa_generate_key(const unsigned long bitlength){
 }
 
 void generate_prime(mpz_t result, const unsigned long bitlength, gmp_randstate_t state){
-    // generate random number greater than 2
-	do{
-		mpz_urandomb(result, state, bitlength);
-    }while( mpz_cmp_ui(result, 0x3) <= 0);
+    // generates random number of length specified by bitlength
+	mpz_urandomb(result, state, bitlength);
+    mpz_setbit(result, bitlength - 1);
 
     // if random number is even, make it odd
     if(mpz_even_p(result) != 0) mpz_add_ui(result, result, 0x1);
