@@ -102,7 +102,7 @@ void rsa_generate_key(const unsigned long bitlength){
         }while( mpz_cmp(p, q) == 0 );
 
         mpz_mul(tmp, p, q);
-    }while( !mpz_tstbit(tmp, bitlength - 1) );
+    }while( !mpz_tstbit(tmp, bitlength - 1) || mpz_tstbit(tmp, bitlength) );
 
 	gmp_printf("%#Zx ", p);
 	gmp_printf("%#Zx ", q);
