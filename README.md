@@ -1,4 +1,4 @@
-# RSA cryptograhpy
+# RSA cryptography
 
 Simple implementation of cryptographic library that uses RSA public key cryptosystem. It enables to generate RSA keys, encrypt/decrypt messages and calculate private key from public key (brute force).
 
