@@ -2,7 +2,7 @@
  *	File: kry.c
  *	Course: KRY - Cryptography
  *	Project: 2. RSA
- *	Name: Tomas Bruckner, xbruck02@stud.fit.vutbr.cz
+ *	Name: Tomas Bruckner, tomasbrucknermail@gmail.com
  *	Date: 2016-04-04
  *	Description:
  **/
